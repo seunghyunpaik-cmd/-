@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전사 부서별 액션플랜 간트차트 (일 단위·주차)</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  :root{--ink:#16352B;--forest:#2E5E45;--gold:#C2A15A;--cream:#FAF7F0;--paper:#FFFFFF;--line:#E4DCCB;--muted:#7A7568;--grid:#EFE9DC;--gridw:#E8E0CE;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:"Pretendard","Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:var(--cream);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1320px;margin:0 auto;padding:28px 24px 64px;}
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:4px;}
+  .title h1{font-size:23px;font-weight:800;margin:0 0 4px;letter-spacing:-.4px;}
+  .title p{margin:0;color:var(--muted);font-size:13px;font-weight:500;}
+  .meta{text-align:right;font-size:12px;color:var(--muted);line-height:1.6;}
+  .meta b{color:var(--forest);font-weight:700;}
+
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;}
+  .tabs{display:flex;gap:6px;}
+  .tab{appearance:none;border:1px solid var(--line);border-bottom:none;background:#F2ECDF;color:var(--muted);padding:11px 22px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;border-radius:9px 9px 0 0;transition:.15s;letter-spacing:-.2px;}
+  .tab:hover{color:var(--ink);}
+  .tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .status-wrap{display:flex;align-items:center;gap:10px;}
+  .status{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:20px;border:1px solid var(--line);background:#fff;}
+  .status .dot{width:8px;height:8px;border-radius:50%;background:#B6AC97;}
+  .status.live .dot{background:#3Fa168;}.status.err .dot{background:#cc5b4a;}
+  .status.live{color:#2c7a4f;border-color:#bfe0cc;}.status.err{color:#b04434;border-color:#e6c6bf;}
+  .btn{appearance:none;border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:inherit;font-weight:700;font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;}
+  .btn.ghost{background:#fff;color:var(--ink);}
+  .btn:hover{opacity:.92;}
+
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:0 12px 12px 12px;padding:22px 22px 26px;box-shadow:0 6px 26px -18px rgba(22,53,43,.5);}
+  .panel.hidden{display:none;}
+  .panel-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:14px;}
+  .panel-intro h2{font-size:17px;margin:0 0 5px;font-weight:800;}
+  .panel-intro .sub{font-size:12.5px;color:var(--muted);max-width:600px;line-height:1.6;}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:11.5px;color:var(--muted);}
+  .legend .lg{display:inline-flex;align-items:center;gap:6px;}
+  .legend .sw{width:13px;height:13px;border-radius:3px;display:inline-block;}
+  .legend .ms{color:var(--gold);font-weight:800;}
+  .hint{font-size:11px;color:#B6AC97;margin:0 0 8px;}
+
+  /* ===== gantt (day axis, horizontal scroll) ===== */
+  .gantt{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fff;width:max-content;max-width:100%;}
+  .mtint{position:absolute;top:0;bottom:0;background:#FBF8EF;}
+  .gboard{position:relative;font-size:0;}
+  .grow{display:flex;align-items:stretch;}
+  .glabel{position:sticky;left:0;z-index:3;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--grid);padding:7px 12px;font-size:11.5px;display:flex;align-items:center;line-height:1.3;}
+  .ghead .glabel{background:var(--ink);color:#fff;font-weight:800;z-index:7;border-bottom:none;align-items:flex-end;padding-bottom:6px;font-size:12px;}
+  .track{position:relative;flex:0 0 auto;border-bottom:1px solid var(--grid);}
+  .daygrid{position:absolute;top:0;bottom:0;left:0;}
+  .zone{position:absolute;top:0;bottom:0;background:#F4EEE2;border-left:2px dashed #D8CDB4;}
+  .mline{position:absolute;top:0;bottom:0;width:0;border-left:1px solid var(--gridw);}
+  .today{position:absolute;top:0;bottom:0;width:0;border-left:1.5px solid #d2674f;z-index:2;}
+  .bar{position:absolute;top:6px;height:22px;border-radius:6px;display:flex;align-items:center;padding:0 7px;color:#fff;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.16);letter-spacing:-.2px;z-index:1;}
+  .bar.soft{opacity:.6;border:1px dashed rgba(255,255,255,.7);}
+  .barlab{position:absolute;top:9px;font-size:9.5px;font-weight:700;color:#5b554a;white-space:nowrap;z-index:1;}
+  .ms{position:absolute;top:5px;z-index:4;}
+  .ms .dot{position:absolute;left:-8px;top:0;width:16px;height:16px;background:var(--gold);border-radius:5px;transform:rotate(45deg);box-shadow:0 1px 4px rgba(0,0,0,.25);}
+  .ms .lab{position:absolute;left:11px;top:-1px;font-size:9.5px;font-weight:800;color:var(--ink);white-space:nowrap;background:rgba(250,247,240,.9);padding:1px 4px;border-radius:3px;}
+  .ms.left .lab{left:auto;right:11px;}
+  /* header bands */
+  .htrack{position:relative;flex:0 0 auto;background:var(--ink);}
+  .mband{position:absolute;top:0;height:24px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:800;border-left:1px solid rgba(255,255,255,.18);}
+  .wtick{position:absolute;top:24px;height:26px;color:#cfe0d4;font-size:9.5px;font-weight:700;border-left:1px solid rgba(255,255,255,.14);padding-left:3px;padding-top:3px;line-height:1.15;white-space:nowrap;}
+  .wtick b{color:#fff;font-size:10px;}
+  .zonehead{position:absolute;top:0;height:50px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;background:#0e251d;border-left:2px dashed rgba(255,255,255,.3);}
+  .todayhead{position:absolute;top:3px;transform:translateX(-50%);background:#fff;color:#d2674f;border:1px solid #d2674f;border-radius:4px;padding:0 5px;font-size:8.5px;font-weight:800;z-index:8;white-space:nowrap;line-height:15px;}
+  /* dept group row */
+  .dept .glabel{background:#F7F2E8;font-weight:800;font-size:12px;gap:8px;}
+  .dept .glabel .chip{width:11px;height:11px;border-radius:3px;flex:0 0 auto;}
+  .dept .track{background:#F7F2E8;}
+  .dept .dgoal{position:absolute;left:10px;top:0;bottom:0;display:flex;align-items:center;font-size:10.5px;color:var(--muted);z-index:1;}
+
+  .notes{margin-top:18px;border:1px solid var(--line);border-left:4px solid var(--gold);background:#FBF7EE;border-radius:8px;padding:13px 16px;}
+  .notes h3{margin:0 0 7px;font-size:12.5px;color:var(--forest);font-weight:800;}
+  .notes ul{margin:0;padding-left:17px;}
+  .notes li{font-size:11.8px;color:#5b554a;line-height:1.65;margin-bottom:2px;}
+  .tag{display:inline-block;background:#fdeccd;color:#8a6a1e;font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;margin-right:5px;vertical-align:middle;}
+  .calstrip{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin-bottom:18px;}
+  .calbox{border:1px solid var(--line);border-radius:9px;padding:11px 12px;background:#FBF8F1;position:relative;overflow:hidden;}
+  .calbox .mon{font-size:11px;font-weight:800;color:var(--forest);}
+  .calbox .type{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:4px;margin:4px 0 6px;}
+  .calbox .type.big{background:var(--ink);color:#fff;}.calbox .type.small{background:var(--gold);color:#3a2c00;}
+  .calbox .desc{font-size:11.5px;color:#4a463d;font-weight:600;line-height:1.4;}
+  .calbox.now{border:1.5px solid var(--gold);box-shadow:0 4px 14px -8px rgba(194,161,90,.7);}
+  footer{margin-top:26px;text-align:center;font-size:11px;color:#B6AC97;}
+
+  .overlay{position:fixed;inset:0;background:rgba(22,53,43,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:24px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5);}
+  .modal h3{margin:0 0 4px;font-size:16px;font-weight:800;}
+  .modal p.lead{margin:0 0 14px;font-size:12px;color:var(--muted);line-height:1.6;}
+  .modal label{display:block;font-size:11.5px;font-weight:700;margin:11px 0 4px;}
+  .modal input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:12px;}
+  .modal textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-family:inherit;font-size:11.5px;resize:vertical;line-height:1.5;}
+  .modal .steps{background:#FBF7EE;border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin:14px 0;font-size:11.5px;color:#5b554a;line-height:1.7;}
+  .modal .steps b{color:var(--forest);}
+  .modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;}
+  .modal .msg{font-size:11.5px;font-weight:700;margin-top:8px;min-height:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <h1>전사 부서별 액션플랜 간트차트</h1>
+      <p>2026 상반기 워크샵 부서별 발표 기반 · 하반기 실행 로드맵 (일 단위 · 주차)</p>
+    </div>
+    <div class="meta">취합 2026.06.28<br>대상 부문 <b>8개</b> &nbsp;|&nbsp; 전환 화두 <b>매장 수 → 매장력</b><br>3개년 매출 목표 <b>3,940억 → 4,700억 → 5,400억</b></div>
+  </header>
+
+  <div class="toolbar">
+    <div class="tabs">
+      <button class="tab active" data-tab="dept">전사 부서별 액션플랜</button>
+      <button class="tab" data-tab="menu">신메뉴 도입 (상품기획)</button>
+    </div>
+    <div class="status-wrap">
+      <span class="status" id="status"><span class="dot"></span><span id="status-text">스냅샷 데이터</span></span>
+      <button class="btn ghost" id="open-connect">데이터 연결 ⚙</button>
+    </div>
+  </div>
+
+  <section class="panel" id="panel-dept">
+    <div class="panel-intro">
+      <div><h2>부서별 액션플랜 · 2026 하반기</h2>
+        <div class="sub">실제 날짜(일) 기준으로 배치했습니다. 상단은 <b>월 / 주차(연 단위)</b>, 빨간 선은 <b>오늘</b>, ◆는 마일스톤, 점선 바는 진행 중·시점 미확정입니다.</div></div>
+      <div class="legend" id="legend-dept"></div>
+    </div>
+    <p class="hint">← → 가로로 스크롤하세요. 막대 위에 마우스를 올리면 세부 내용이 표시됩니다.</p>
+    <div class="gantt" id="gantt-dept"></div>
+    <div class="notes">
+      <h3>주요 의사결정 · 확인 필요 사항 (워크샵 후속)</h3>
+      <ul>
+        <li><span class="tag">결정</span>위탁점 운영방식 — <b>직영화 / 가맹화 분리 기준</b> 미정 (출점·직영·운영 협의)</li>
+        <li><span class="tag">협의</span>LSM <b>업무분장 및 판촉비 예산</b> — 운영(제안)·마케팅(실행) 경계, 판촉비 배정 주체·규모</li>
+        <li><span class="tag">확인</span><b>신메뉴 매출 비중 목표</b> [%] — 부서간 계수 작업 후 확정 (별도 탭 참조)</li>
+        <li><span class="tag">수립</span><b>부문별 세부 매출 목표</b> — 전사 3,940억 하위 분해, 워크샵 이후 부서 협업으로 계수 산정</li>
+        <li><span class="tag">기준</span>매출 분석 <b>일별 → 주간 전환</b> 및 동일매장 비교·조기경보 임계값 설정</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="panel-menu">
+    <div class="panel-intro">
+      <div><h2>신메뉴 도입 일정 · 상품기획팀</h2>
+        <div class="sub">연간 시즌 개편 캘린더와 직전 시즌(여름·가을) 상세 실행 일정을 분리했습니다. 핵심 원칙은 <b>“전 매장 동시 런칭 · 정기적·지속적 출시”</b>.</div></div>
+      <div class="legend" id="legend-menu"></div>
+    </div>
+    <h3 style="font-size:13px;margin:4px 0 10px;color:var(--forest);font-weight:800;">① 2026 시즌 개편 일정 — 소개편(6·9월) · 대개편(8·11월) <span style="font-weight:600;color:var(--muted);font-size:11px;">※ 표준 개편 주기 연 6회 목표 (하반기부터 가동)</span></h3>
+    <div class="calstrip" id="calstrip"></div>
+    <h3 style="font-size:13px;margin:18px 0 10px;color:var(--forest);font-weight:800;">② 여름·가을 시즌 상세 실행 (6~7월) — 담당별 · 일 단위</h3>
+    <p class="hint">← → 가로로 스크롤하세요.</p>
+    <div class="gantt" id="gantt-menu"></div>
+    <div class="notes">
+      <h3>신메뉴 핵심 마일스톤 · 연계 사항</h3>
+      <ul>
+        <li><b>여름개편</b> — 7/14 신메뉴 촬영 → <b>7/30 전사 런칭</b> (직영점 선출시 7/2 · 가맹점 7/9~16)</li>
+        <li><b>8월 여름보양 대개편</b>(머스크멜론) · <b>9월 씨푸드 소개편</b>(계절과일) · <b>11월 겨울 셰프 콜라보</b> 대개편(마케팅 연계)</li>
+        <li><span class="tag">전제</span>전 매장 동시 적용률이 효과의 핵심 — 적용 매장 수·실행력 추적 체계 필요</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>부서별 발표자료 종합 기준 · 시점·세부 일정은 부서 협의에 따라 변동될 수 있습니다.</footer>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>구글 시트 연결</h3>
+    <p class="lead">구글 시트의 각 탭을 <b>“웹에 게시(CSV)”</b> 한 주소(<b>output=csv</b>로 끝남)를 아래에 붙여넣으세요. 어느 탭인지는 <b>자동 분류</b>됩니다.</p>
+    <div class="steps"><b>설정 순서</b><br>① 구글 시트 <b>파일 → 공유 → 웹에 게시</b><br>② 탭 선택(<b>부서별</b>) · 형식 <b>CSV</b> → 게시 → 주소 복사<br>③ <b>신메뉴캘린더 · 신메뉴상세</b> 탭도 같은 방식으로<br>④ 아래에 <b>한 줄에 하나씩</b> 붙여넣고 <b>[연결]</b> (1~3개, 순서 무관)</div>
+    <label>게시(CSV) 주소 — 한 줄에 하나씩</label>
+    <textarea id="url-list" rows="4" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv"></textarea>
+    <div class="msg" id="modal-msg"></div>
+    <div class="actions">
+      <button class="btn ghost" id="btn-disconnect">연결 해제(스냅샷)</button>
+      <button class="btn ghost" id="btn-close">닫기</button>
+      <button class="btn" id="btn-connect">연결</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const Y=2026, DAYMS=86400000; const _NOW=new Date(); const TODAY=new Date(_NOW.getFullYear(),_NOW.getMonth(),_NOW.getDate());
+const DEPT_COLORS={"사업운영(운영·가맹관리)":"#16352B","출점·영업개발":"#2E5E45","직영사업부":"#4E8060","인테리어팀":"#7BA17E","마케팅팀":"#C2A15A","구매·SCM":"#B07D3F","BX팀":"#5B7B95","경영지원(인사·재무·IT·법무)":"#9A8C76"};
+const FALLBACK=["#16352B","#2E5E45","#4E8060","#7BA17E","#C2A15A","#B07D3F","#5B7B95","#9A8C76","#7A5C8A","#3E7C7C"];
+const colorFor=(n,i)=>DEPT_COLORS[n]||FALLBACK[i%FALLBACK.length];
+
+/* ===== SNAPSHOT (decimals: m + week-frac) ===== */
+let DEPT=[
+ {dept:"사업운영(운영·가맹관리)",goal:"원DB·QSCOM 표준화·LSM 확산",tasks:[
+  {name:"ONE DB 구축·검증 → 3Q 매출예측",s:6.0,e:9.6,detail:"1차 완료→검증·테스트→상시 최신화"},
+  {name:"매장 등급화 BGCI 체계 구축",s:7.25,e:8.1,detail:"7월2주 기준수립 → 7월3주 운영전략(B20·G+10%·C+5%)"},
+  {name:"QSCOM 기준수립·SV교육·전점 1차 진단",s:7.0,e:9.0,detail:"매뉴얼 v1.0(7월)·SV교육(8월2주)·전점진단(8월3주)"},
+  {name:"QSCOM 개선 PDCA·효과검증",s:9.0,e:11.0,detail:"PDCA(9월)·2차 재점검(10월)",ms:[{at:11.0,label:"11월 표준모델 확정"}]},
+  {name:"데이파트별 LSM (파일럿→확산)",s:7.25,e:9.9,detail:"파일럿5~10(7월)→1·2차 확산·가이드북(9월2주)"},
+  {name:"평일점심 운영모델 검토",s:7.0,e:8.0,detail:"과제 정의 → 경영진 결정 후 실행",soft:true}]},
+ {dept:"출점·영업개발",goal:"위탁 100일 정상화 · 특수상권 선별 출점",tasks:[
+  {name:"위탁매장 100일 프로젝트",s:7.0,e:10.0,detail:"진단·ABC(~30일)·개선(~70일)·정착(~100일)"},
+  {name:"특수상권 출점 후보 선별·심사 (8곳)",s:7.0,e:9.0,detail:"롯데몰송도 최우선·120~160평·심사표 80점↑"},
+  {name:"하반기 신규 출점 3개",s:9.0,e:12.0,detail:"몰형 컴팩트·일매출 1,200만↑"},
+  {name:"직영/가맹 운영방식 결정",s:7.0,e:8.0,detail:"위탁점 직영화·가맹화 분리 기준",soft:true},
+  {name:"신규 10개 출점 (중장기)",s:13.1,e:13.9,detail:"2027 신규 10개 / 2028 해외·2nd 브랜드"}]},
+ {dept:"직영사업부",goal:"직영 8→13개 · 오금점 3Q 흑자전환",tasks:[
+  {name:"오금점 정상화·흑자전환",s:6.0,e:9.0,detail:"점장 채용·매니저 교체·리뷰 긍정 98%대"},
+  {name:"직영 8→13개 (5개 추가 인수)",s:8.0,e:9.0,detail:"별내·의정부민락·용인마북·안양삼덕·서울신내"},
+  {name:"A급 점장 13인 양성·배치",s:7.0,e:12.0,detail:"매장 운영 전문성 극대화"},
+  {name:"직영점 관리 프로세스·표준 규격집",s:7.0,e:10.0,detail:"원가·인건비·품질 표준화"},
+  {name:"직영 P&L 목표 (연 42.4억·이익20%)",s:6.0,e:12.0,detail:"12월 매출 42.4억·이익 8.48억",soft:true}]},
+ {dept:"인테리어팀",goal:"양적→질적 · 5대 실행과제",tasks:[
+  {name:"경주용황점 파일럿",s:7.0,e:8.0,detail:"5대 항목 우선 적용·첫 증명"},
+  {name:"① 프로세스 표준화 (6단계)",s:7.0,e:9.0,detail:"기획→설계→견적→시공→감리→인수인계"},
+  {name:"② 표준단가 셋팅",s:7.0,e:9.0,detail:"평당·주방/공조·가구/사인 기준화"},
+  {name:"③ 시설 매뉴얼 재정립",s:8.0,e:10.0,detail:"공조 이격·자재 업그레이드·도면 의무화"},
+  {name:"④ 디자인 · ⑤ F&B 핵심구역 강화",s:8.0,e:10.0,detail:"조도·동선·네임택 / 샐러드바·핫코너·쿨링존"},
+  {name:"표준 확산 (12개→156개)",s:10.0,e:12.0,detail:"매뉴얼 제도화·전점 확산"}]},
+ {dept:"마케팅팀",goal:"ATL→BTL · 멤버십 자산화 · 모델 활용",tasks:[
+  {name:"모델(김우빈) 지면→온라인·매장 활용",s:7.0,e:9.0,detail:"8월말 최종본 → 8월말~9월초 활용",ms:[{at:"2026-07-14",label:"7/14 촬영"}]},
+  {name:"TVC+포토 세트촬영 → 방학 광고",s:12.0,e:13.9,detail:"12월 중순~’27.2월 연계",ms:[{at:"2026-08-25",label:"8/25 TVC"}]},
+  {name:"제휴 CRM (비수기)",s:7.0,e:10.0,detail:"카드사·페이·플랫폼 CRM"},
+  {name:"자체 멤버십 개발·런칭",s:8.0,e:10.0,detail:"고객 DB·LTV",ms:[{at:"2026-10-01",label:"10월 런칭"}]},
+  {name:"셰프 콜라보 겨울 캠페인",s:10.5,e:12.0,detail:"11월 말 겨울 신메뉴 콜라보"},
+  {name:"상권 맞춤 LSM · 예비비 운용",s:7.0,e:12.0,detail:"연령·메뉴 세분화·월별 방어"}]},
+ {dept:"구매·SCM",goal:"전략적 구매 · 3PL 전환 · 소고기 재편",tasks:[
+  {name:"3PL 전환 (1차 6월→최종 ’27.5)",s:6.0,e:13.9,detail:"4PL 의존 탈피·매입 주도권"},
+  {name:"구매 3파트 + SCM 체제 완성",s:7.0,e:12.0,detail:"산지직구매/축산/직수입·원팩"},
+  {name:"과채류 산지직구매 (주6일)",s:8.0,e:12.0,detail:"사입→직공급 전환"},
+  {name:"원팩가공·직수입",s:9.0,e:12.0,detail:"전용 가공업체·원물 직수입"},
+  {name:"소고기 부위전환·재편 (중장기)",s:13.1,e:13.9,detail:"목심 전각·차돌 GF·설도 제거"}]},
+ {dept:"BX팀",goal:"표준 매장 모델 · 경험 70% 통일",tasks:[
+  {name:"STEP1 고객경험 진단",s:7.0,e:8.0,detail:"직영 오금·위례(7/2~15)·가맹 해운대·수영(7/16~31)",ms:[{at:"2026-06-29",label:"6/29 보고"}]},
+  {name:"STEP2 표준모델 설계·구현",s:8.0,e:11.0,detail:"플래그십 1호점·대중소 가이드"},
+  {name:"경험 70% 통일",s:8.0,e:11.0,detail:"동선·연출·유니폼·신선도·POP"},
+  {name:"STEP3 표준화 체계 정립",s:11.0,e:13.0,detail:"운영 가이드북·글로벌 표준화"}]},
+ {dept:"경영지원(인사·재무·IT·법무)",goal:"평가보상 · 예산제도 · ERP · 가맹계약",tasks:[
+  {name:"신직급·평가보상 안정화",s:7.0,e:9.0,detail:"5월 달성률 미흡 개선"},
+  {name:"부서별 예산제도 도입·정착",s:7.0,e:10.0,detail:"부문별 예산 운용"},
+  {name:"ERP 도입·안정화",s:7.0,e:9.0,detail:"7/1 도입",ms:[{at:"2026-07-01",label:"7/1 ERP"}]},
+  {name:"핵심부서 채용 (법무·IT·인사총무)",s:7.0,e:10.0,detail:"공석 충원·조직 세팅"},
+  {name:"가맹계약 정기화·체계화",s:7.0,e:12.0,detail:"가맹계약 관리 정비"}]}
+];
+let SEASON=[{mon:"6월",type:"소개편",desc:"생망고 / 디저트",now:true},{mon:"8월",type:"대개편",desc:"여름보양 / 머스크멜론"},{mon:"9월",type:"소개편",desc:"씨푸드 / 계절과일"},{mon:"11월",type:"대개편",desc:"연말 (기획 중)"}];
+let MENU=[
+ {dept:"상품기획",color:"#16352B",tasks:[
+  {name:"여름개편 기획안 공유",s:6.0,e:6.25},{name:"BP방문·기획방향 협의",s:6.0,e:6.5},
+  {name:"기획안 협의(SV)",s:6.5,e:6.55,ms:[{at:6.5,label:"★ SV 협의"}]},
+  {name:"모델점 레이아웃·셀링포인트",s:6.75,e:7.0},{name:"여름개편 레이아웃 공유(7월)",s:7.25,e:7.5}]},
+ {dept:"개발",color:"#2E5E45",tasks:[
+  {name:"여름개편 상품개발·BP방문",s:6.25,e:6.75},{name:"여름개편 품평",s:6.75,e:6.8,ms:[{at:6.75,label:"★ 품평"}]},
+  {name:"상품촬영",s:6.75,e:7.0},{name:"점주 교육자료 전달",s:7.25,e:7.5}]},
+ {dept:"구매",color:"#B07D3F",tasks:[
+  {name:"식자재 조달/드랍 예정 소통",s:6.75,e:7.0},
+  {name:"식자재 조달/드랍 최종",s:7.25,e:7.3,ms:[{at:7.25,label:"★ 조달 최종"}]},{name:"원산지 공유",s:7.25,e:7.5}]},
+ {dept:"마케팅",color:"#C2A15A",tasks:[
+  {name:"여름개편 상품촬영(누끼)",s:6.75,e:7.0},
+  {name:"신메뉴 촬영",s:"2026-07-14",e:"2026-07-15",ms:[{at:"2026-07-14",label:"★ 7/14"}]},
+  {name:"광고물 준비·매장 배송",s:7.5,e:7.95}]},
+ {dept:"SCM",color:"#5B7B95",tasks:[{name:"식자재 재고현황 파악",s:6.5,e:6.75},{name:"인아웃 리스트(최종)",s:7.25,e:7.5}]},
+ {dept:"VMD",color:"#7BA17E",tasks:[{name:"신규 기물 서칭",s:6.5,e:6.9}]},
+ {dept:"SV / 원팀",color:"#9A8C76",tasks:[
+  {name:"모델점 선출시·현장점검(원팀)",s:7.0,e:7.25},{name:"점주 공문 발송(SV)",s:7.5,e:7.6},
+  {name:"상품 출시 & 원팀 점검",s:"2026-07-30",e:"2026-07-31",ms:[{at:"2026-07-30",label:"★ 7/30 런칭"}]}]},
+ {dept:"가을시즌 (병행)",color:"#4E8060",tasks:[
+  {name:"가을개편 기획안 준비",s:6.75,e:7.25},{name:"가을개편 협의(SV)",s:7.25,e:7.3,ms:[{at:7.25,label:"★ 가을 협의"}]},
+  {name:"가을개편 최종 기획안·BP",s:7.5,e:8.0},{name:"가을개편 상품개발·BP",s:7.75,e:8.0,soft:true}]}
+];
+
+/* ===== date helpers ===== */
+const dim=(y,m)=>new Date(y,m,0).getDate();
+function decToDate(dec){ if(dec>=13)return{jangki:true}; const m=Math.floor(dec),f=dec-m; const day=Math.max(1,Math.min(dim(Y,m),Math.round(f*dim(Y,m))+1)); return{date:new Date(Y,m-1,day)}; }
+function pd(s){ if(!s)return null; const n=String(s).match(/\d+/g); if(!n||n.length<2)return null; let y,m,d; if(n[0].length>=4){y=+n[0];m=+n[1];d=+(n[2]||1);} else if(n.length>=3&&n[2].length>=4){y=+n[2];m=+n[0];d=+n[1];} else {y=2026;m=+n[0];d=+(n[1]||1);} return{y,m,d}; }
+function strToDate(s){ const p=pd(s); if(!p)return null; if(p.y>=2027)return{jangki:true}; return{date:new Date(p.y,p.m-1,p.d)}; }
+function anyToDate(v){ if(v===null||v===undefined||v==="")return null; return (typeof v==="number")?decToDate(v):strToDate(v); }
+function isoWeek(dt){ const d=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate())); const day=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-day+3); const f=new Date(Date.UTC(d.getUTCFullYear(),0,4)); const fd=(f.getUTCDay()+6)%7; f.setUTCDate(f.getUTCDate()-fd+3); return 1+Math.round((d-f)/(7*DAYMS)); }
+const md=dt=>`${dt.getMonth()+1}/${dt.getDate()}`;
+
+/* ===== generic day-axis gantt ===== */
+function renderGantt(containerId, groups, opt){
+  const {start,end,ppd,labelW,zone}=opt;
+  const totalDays=Math.round((end-start)/DAYMS)+1;
+  const datedW=totalDays*ppd, ZONE_W=zone?150:0, timeW=datedW+ZONE_W;
+  const xOf=dt=>Math.round((dt-start)/DAYMS)*ppd;
+  // month dividers + bands
+  const months=[]; let mc=new Date(start.getFullYear(),start.getMonth(),1);
+  while(mc<=end){ const mEnd=new Date(mc.getFullYear(),mc.getMonth()+1,0); const segS=mc<start?start:mc, segE=mEnd>end?end:mEnd; months.push({m:mc.getMonth()+1,x:xOf(segS),w:(Math.round((segE-segS)/DAYMS)+1)*ppd,start:segS}); mc=new Date(mc.getFullYear(),mc.getMonth()+1,1); }
+  // week ticks (Mondays)
+  const weeks=[]; let wc=new Date(start); const off=(wc.getDay()+6)%7; if(off)wc.setDate(wc.getDate()-off); // back to Monday
+  for(; wc<=end; wc=new Date(wc.getFullYear(),wc.getMonth(),wc.getDate()+7)){ if(wc<start)continue; weeks.push({x:xOf(wc),wk:isoWeek(wc),lbl:md(wc)}); }
+  const todayX = (TODAY>=start&&TODAY<=end)?xOf(TODAY):null;
+
+  // shared overlay html for each track
+  function trackBG(){ let s=`<div class="daygrid" style="width:${datedW}px"></div>`;
+    months.forEach((mo,i)=>{ if(i%2===1) s+=`<div class="mtint" style="left:${mo.x}px;width:${mo.w}px"></div>`; });
+    months.forEach((mo,i)=>{ if(i>0) s+=`<div class="mline" style="left:${mo.x}px"></div>`; });
+    weeks.forEach(w=>{ s+=`<div class="mline" style="left:${w.x}px;border-color:var(--gridw)"></div>`; });
+    if(zone) s+=`<div class="zone" style="left:${datedW}px;width:${ZONE_W}px"></div>`;
+    if(todayX!==null) s+=`<div class="today" style="left:${todayX}px"></div>`;
+    return s;
+  }
+
+  let h=`<div class="gboard" style="width:${labelW+timeW}px">`;
+  // header
+  h+=`<div class="ghead grow"><div class="glabel" style="flex:0 0 ${labelW}px;width:${labelW}px">부서 · 과제</div>`;
+  h+=`<div class="htrack" style="width:${timeW}px;height:50px">`;
+  months.forEach(mo=>{ h+=`<div class="mband" style="left:${mo.x}px;width:${mo.w}px">${mo.m}월</div>`; });
+  weeks.forEach(w=>{ const ww=ppd*7; h+=`<div class="wtick" style="left:${w.x}px;width:${ww}px"><b>${w.wk}주차</b><br>${w.lbl}</div>`; });
+  if(zone) h+=`<div class="zonehead" style="left:${datedW}px;width:${ZONE_W}px">'27~'28<br>중장기</div>`;
+  if(todayX!==null) h+=`<div class="todayhead" style="left:${todayX}px">오늘</div>`;
+  h+=`</div></div>`;
+
+  groups.forEach((g,gi)=>{
+    const c=g.color||colorFor(g.dept,gi);
+    h+=`<div class="dept grow"><div class="glabel" style="flex:0 0 ${labelW}px;width:${labelW}px"><span class="chip" style="background:${c}"></span>${g.dept}</div><div class="track" style="width:${timeW}px;height:30px">${trackBG()}<div class="dgoal">${g.goal||''}</div></div></div>`;
+    g.tasks.forEach(t=>{
+      h+=`<div class="grow"><div class="glabel" style="flex:0 0 ${labelW}px;width:${labelW}px">${t.name}</div><div class="track" style="width:${timeW}px;height:34px">${trackBG()}`;
+      const sd=anyToDate(t.s), ed=anyToDate(t.e);
+      const isJ=(t.jangki)||(sd&&sd.jangki)||(ed&&ed.jangki)||!sd;
+      if(isJ && zone){
+        h+=`<div class="bar" style="left:${datedW+12}px;width:${ZONE_W-24}px;background:${c}" title="${(t.detail||'').replace(/"/g,'&quot;')}">중장기</div>`;
+      } else if(sd&&sd.date){
+        let e2=(ed&&ed.date)?ed.date:new Date(sd.date.getTime()+3*DAYMS);
+        if(e2>end)e2=end;
+        const L=xOf(sd.date), W=Math.max((Math.round((e2-sd.date)/DAYMS)+1)*ppd,8);
+        const rng=`${md(sd.date)}~${md(e2)}`;
+        const hasMs=t.ms&&t.ms.length;
+        const inside=W>78;
+        h+=`<div class="bar ${t.soft?'soft':''}" style="left:${L}px;width:${W}px;background:${c}" title="${(t.detail||'').replace(/"/g,'&quot;')}">${inside&&!hasMs?rng:''}</div>`;
+        if(!inside && !hasMs) h+=`<div class="barlab" style="left:${L+W+4}px">${rng}</div>`;
+      }
+      (t.ms||[]).forEach(m=>{ const a=anyToDate(m.at); if(a&&a.date){ const x=xOf(a.date); const left=x>datedW-110; h+=`<div class="ms ${left?'left':''}" style="left:${x}px"><div class="dot"></div><div class="lab">${m.label}</div></div>`; } });
+      h+=`</div></div>`;
+    });
+  });
+  h+=`</div>`;
+  document.getElementById(containerId).innerHTML=h;
+}
+
+function renderGantt1(){ renderGantt("gantt-dept",DEPT,{start:new Date(2026,5,1),end:new Date(2026,11,31),ppd:7,labelW:230,zone:true}); }
+function renderGantt2(){ renderGantt("gantt-menu",MENU,{start:new Date(2026,5,1),end:new Date(2026,6,31),ppd:14,labelW:200,zone:false}); }
+function renderCal(){ const el=document.getElementById("calstrip"); el.style.gridTemplateColumns=`repeat(${Math.min(SEASON.length,6)||1},1fr)`; el.innerHTML=SEASON.map(s=>`<div class="calbox ${s.now?'now':''}"><div class="mon">${s.mon}${s.now?' · 현재':''}</div><div class="type ${s.type==='대개편'?'big':'small'}">${s.type}</div><div class="desc">${s.desc}</div></div>`).join(""); }
+function renderLegend(){ let h=""; DEPT.forEach((d,i)=>h+=`<span class="lg"><span class="sw" style="background:${colorFor(d.dept,i)}"></span>${d.dept.replace(/\(.*\)/,'')}</span>`); h+=`<span class="lg"><span class="ms">◆</span>마일스톤</span>`; document.getElementById("legend-dept").innerHTML=h; }
+function renderAll(){ renderGantt1(); renderGantt2(); renderCal(); renderLegend(); }
+
+/* ===== Google Sheets ===== */
+function parseCSV(text){ const rows=[];let row=[],val="",q=false; for(let i=0;i<text.length;i++){const ch=text[i]; if(q){ if(ch==='"'){ if(text[i+1]==='"'){val+='"';i++;} else q=false; } else val+=ch; } else { if(ch==='"')q=true; else if(ch===','){row.push(val);val="";} else if(ch==='\n'){row.push(val);rows.push(row);row=[];val="";} else if(ch==='\r'){} else val+=ch; } } if(val!==""||row.length){row.push(val);rows.push(row);} return rows; }
+function toObjects(rows){ let hi=0; const K=["부서","담당","월","과제","업무","내용"]; for(let i=0;i<rows.length;i++){ if(rows[i].some(c=>K.includes((c||"").trim()))){hi=i;break;} } const head=rows[hi].map(c=>(c||"").trim()); const out=[]; for(let i=hi+1;i<rows.length;i++){ const r=rows[i]; if(!r||r.every(c=>!(c||"").trim()))continue; const o={}; head.forEach((h,j)=>o[h]=(r[j]||"").trim()); out.push(o); } return out; }
+function buildDept(objs){ const g=[],idx={}; objs.forEach(o=>{ const n=o["부서"]; if(!n)return; if(!(n in idx)){idx[n]=g.length;g.push({dept:n,goal:o["부서목표"]||"",tasks:[]});} const G=g[idx[n]]; if(!G.goal&&o["부서목표"])G.goal=o["부서목표"]; const ms=[]; if(o["마일스톤일"]&&o["마일스톤라벨"])ms.push({at:o["마일스톤일"],label:o["마일스톤라벨"]}); G.tasks.push({name:o["과제"]||"",s:o["시작일"]||"",e:o["종료일"]||"",detail:o["비고"]||"",soft:(o["진행중"]||"").toUpperCase()==="Y",jangki:(o["중장기"]||"").toUpperCase()==="Y",ms}); }); return g; }
+function buildCal(objs){ return objs.filter(o=>o["월"]).map(o=>({mon:o["월"],type:o["구분"]||"",desc:o["내용"]||"",now:(o["현재"]||"").toUpperCase()==="Y"})); }
+function buildMenu(objs){ const g=[],idx={}; objs.forEach(o=>{ const n=o["담당"]; if(!n)return; if(!(n in idx)){idx[n]=g.length;g.push({dept:n,color:o["색상"]||"",tasks:[]});} const G=g[idx[n]]; if(!G.color&&o["색상"])G.color=o["색상"]; const ms=[]; if(o["마일스톤일"]&&o["마일스톤라벨"])ms.push({at:o["마일스톤일"],label:o["마일스톤라벨"]}); G.tasks.push({name:o["업무"]||"",s:o["시작일"]||"",e:o["종료일"]||"",soft:(o["진행중"]||"").toUpperCase()==="Y",ms}); }); return g; }
+function setStatus(k,t){ const el=document.getElementById("status"); el.className="status"+(k?" "+k:""); document.getElementById("status-text").textContent=t; }
+const PROXIES=[u=>u, u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u), u=>"https://corsproxy.io/?url="+encodeURIComponent(u)];
+async function fetchCSV(url){
+  const bust=url+(url.includes("?")?"&":"?")+"_cb="+Date.now();
+  let lastErr;
+  for(const wrap of PROXIES){
+    try{
+      const r=await fetch(wrap(bust),{redirect:"follow",cache:"no-store"});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const t=await r.text();
+      if(/^\s*</.test(t)) throw new Error("HTML 응답(게시 안 됨/주소 오류)");
+      const objs=toObjects(parseCSV(t));
+      if(objs.length) return objs;
+      throw new Error("빈 데이터");
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr||new Error("fetch 실패");
+}
+async function loadList(urls,announce){
+  urls=(urls||[]).map(s=>String(s).trim()).filter(Boolean);
+  if(!urls.length){setStatus("","스냅샷 데이터");return false;}
+  setStatus("","불러오는 중…");
+  let ok=0; const got={dept:false,cal:false,menu:false}; const errs=[];
+  for(const url of urls){
+    try{
+      const objs=await fetchCSV(url);
+      if(!objs.length) continue;
+      const k=Object.keys(objs[0]);
+      if(k.includes("부서")){ DEPT=buildDept(objs); got.dept=true; ok++; }
+      else if(k.includes("담당")){ MENU=buildMenu(objs); got.menu=true; ok++; }
+      else if(k.includes("월")){ SEASON=buildCal(objs); got.cal=true; ok++; }
+      else errs.push("형식 인식 불가");
+    }catch(e){ errs.push(e.message); }
+  }
+  renderAll();
+  if(ok>0){
+    const parts=[]; if(got.dept)parts.push("부서별"); if(got.cal)parts.push("캘린더"); if(got.menu)parts.push("신메뉴상세");
+    setStatus("live","Google Sheets 연결됨 ("+parts.join("·")+")");
+    if(announce)document.getElementById("modal-msg").innerHTML='<span style="color:#2c7a4f">연결 완료: '+parts.join("·")+' 불러옴. 나머지는 스냅샷 표시.</span>';
+    return true;
+  }
+  setStatus("err","연결 실패 — 스냅샷 표시");
+  if(announce)document.getElementById("modal-msg").innerHTML='<span style="color:#b04434">불러오지 못함. 주소가 output=csv 로 끝나는 게시 주소인지 확인하세요.'+(errs.length?' ('+errs[0]+')':'')+'</span>';
+  return false;
+}
+const LS="adf_gantt_urls_v3";
+const DEFAULT_URLS=["https://docs.google.com/spreadsheets/d/e/2PACX-1vRBgPHZtGwq-TcJA0Uqv4kF95cJClTLyQppzAQX4wv7pOVyryOHYAHUOK0cIB6CR2myRAPvPCQZ-SWt/pub?gid=120210610&single=true&output=csv"];
+const saveUrls=a=>{try{localStorage.setItem(LS,JSON.stringify(a));}catch(e){}};
+const loadUrls=()=>{try{const v=JSON.parse(localStorage.getItem(LS)||"null");return Array.isArray(v)?v:null;}catch(e){return null;}};
+const clearUrls=()=>{try{localStorage.removeItem(LS);}catch(e){}};
+
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active")); b.classList.add("active"); const t=b.dataset.tab; document.getElementById("panel-dept").classList.toggle("hidden",t!=="dept"); document.getElementById("panel-menu").classList.toggle("hidden",t!=="menu"); }));
+const overlay=document.getElementById("overlay");
+document.getElementById("open-connect").onclick=()=>{ const u=loadUrls()||DEFAULT_URLS; document.getElementById("url-list").value=(u||[]).join("\n"); document.getElementById("modal-msg").textContent=""; overlay.classList.add("show"); };
+document.getElementById("btn-close").onclick=()=>overlay.classList.remove("show");
+overlay.onclick=e=>{if(e.target===overlay)overlay.classList.remove("show");};
+document.getElementById("btn-connect").onclick=async()=>{ const arr=document.getElementById("url-list").value.split(/\n+/).map(s=>s.trim()).filter(Boolean); if(!arr.length){document.getElementById("modal-msg").innerHTML='<span style="color:#b04434">게시(CSV) 주소를 1개 이상 넣어주세요.</span>';return;} const ok=await loadList(arr,true); if(ok){saveUrls(arr);setTimeout(()=>overlay.classList.remove("show"),1100);} };
+document.getElementById("btn-disconnect").onclick=()=>{clearUrls();location.reload();};
+
+renderAll();
+const sv=loadUrls();
+if(sv&&sv.length) loadList(sv,false);
+else if(DEFAULT_URLS.length) loadList(DEFAULT_URLS,false);
+else setStatus("","스냅샷 데이터");
+</script>
+</body>
+</html>
